@@ -16,6 +16,7 @@ slidenumbers: true
 ## The bastion/security/identity account
 
 * AWS account with no compute resources, only IAM.
+* A single place to manage IAM users.
 * A single set of IAM credentials per user.
 * Users *assume roles* in other accounts.
 
@@ -62,6 +63,8 @@ Name and create the role.
 
 ---
 
+Trust policy
+
 ```json
 {
   "Version": "2012-10-17",
@@ -85,11 +88,13 @@ Name and create the role.
 
 ---
 
-In your *Identity* account, create a policy that allows users to assume the role in the *Master* account.
+In your *Bastion* account, create a policy that allows users to assume the role in the *Master* account.
 
 ![inline](create-policy-1.jpeg)
 
 ---
+
+Policy
 
 ```json
 {
@@ -149,7 +154,7 @@ The user must activate an MFA device[^1] on their account before they can switch
 
 ---
 
-Once signed in to the Identity account, the user can *switch role* and use the AWS console as usual.
+Once signed in to the Bastion account, the user can *switch role* and use the AWS console as usual.
 
 ![inline](switch-role.jpeg)
 
@@ -161,12 +166,12 @@ Once signed in to the Identity account, the user can *switch role* and use the A
 
 ~/.aws/config
 
-```
-[profile identity]
+``` [.highlight: 1-2]
+[profile bastion]
 mfa_serial = arn:aws:iam::<BASTION-ACCOUNT-ID>:mfa/elmerfudd
 
 [profile master]
-source_profile = identity
+source_profile = bastion
 mfa_serial = arn:aws:iam::<BASTION-ACCOUNT-ID>:mfa/elmerfudd
 role_arn = arn:aws:iam::<MASTER-ACCOUNT-ID>:role/DeveloperRole
 ```
@@ -175,12 +180,12 @@ role_arn = arn:aws:iam::<MASTER-ACCOUNT-ID>:role/DeveloperRole
 
 ~/.aws/config
 
-``` [.highlight: 5]
-[profile identity]
+``` [.highlight: 4-7]
+[profile bastion]
 mfa_serial = arn:aws:iam::<BASTION-ACCOUNT-ID>:mfa/elmerfudd
 
 [profile master]
-source_profile = identity
+source_profile = bastion
 mfa_serial = arn:aws:iam::<BASTION-ACCOUNT-ID>:mfa/elmerfudd
 role_arn = arn:aws:iam::<MASTER-ACCOUNT-ID>:role/DeveloperRole
 ```
@@ -190,18 +195,18 @@ role_arn = arn:aws:iam::<MASTER-ACCOUNT-ID>:role/DeveloperRole
 ~/.aws/credentials
 
 ```
-[identity]
+[bastion]
 aws_access_key_id = AKIAI6ZCA7DBKEXAMPLE
 aws_secret_access_key = A94L...
 
 # No credentials for the master profile,
-# it inherits from identity.
+# it inherits from bastion.
 ```
 
 ---
 
 ```sh
-$ AWS_PROFILE=identity aws sts get-caller-identity
+$ AWS_PROFILE=bastion aws sts get-caller-identity
 {
     "UserId": "AIDAIMBDIHHP7OEXAMPLE",
     "Account": "111122223333",
@@ -231,13 +236,13 @@ Enter [aws-vault](https://github.com/99designs/aws-vault).
 
 ---
 
-Add credentials for the *identity* profile to aws-vault.
+Add credentials for the *bastion* profile to aws-vault.
 
 ```sh
-$ aws-vault add identity
+$ aws-vault add bastion
 Enter Access Key ID: AKIAI6ZCA7DBKEXAMPLE
 Enter Secret Access Key: A94L...
-Added credentials to profile "identity" in vault
+Added credentials to profile "bastion" in vault
 ```
 
 ---
@@ -247,7 +252,7 @@ And remove them from ~/.aws/credentials.
 --- a/credentials
 +++ b/credentials
 @@ -1,3 +0,0 @@
--[identity]
+-[bastion]
 -aws_access_key_id = AKIAI6ZCA7DBKEXAMPLE
 -aws_secret_access_key = A94L...
 ```
@@ -257,7 +262,7 @@ And remove them from ~/.aws/credentials.
 Use `aws-vault exec` to generate temporary credentials.
 
 ```sh
-$ aws-vault exec identity -- aws sts get-caller-identity
+$ aws-vault exec bastion -- aws sts get-caller-identity
 Enter token for arn:aws:iam::111122223333:mfa/elmerfudd: 123456
 {
     "UserId": "AIDAIMBDIHHP7OEXAMPLE",
@@ -285,8 +290,8 @@ Enter token for arn:aws:iam::111122223333:mfa/elmerfudd: 123456
 Use `aws-vault rotate` to rotate your credentials.
 
 ```sh
-$ aws-vault rotate identity
-Rotating credentials for profile "identity" (takes 10-20 seconds)
+$ aws-vault rotate bastion
+Rotating credentials for profile "bastion" (takes 10-20 seconds)
 Done!
 ```
 
@@ -309,8 +314,8 @@ List your profiles and their credentials sources with `aws-vault list`
 $ aws-vault list
 Profile                  Credentials              Sessions
 =======                  ===========              ========
-identity                 identity                 1525711415
-master                   identity                 1525711528
+bastion                  bastion                  1525711415
+master                   bastion                  1525711528
 ```
 
 ---
@@ -345,6 +350,8 @@ It's *magic*.
 ---
 
 ## Questions?
+
+aws-vault: https://github.com/99designs/aws-vault
 
 Slides: https://github.com/masv/multi-account-with-aws-vault
 
